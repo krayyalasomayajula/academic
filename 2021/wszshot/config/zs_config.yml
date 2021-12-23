@@ -1,0 +1,319 @@
+device: cuda
+
+
+global_macros:
+  # =============== George washington dataset ===============
+  - _GW_BASE: &GW_BASE /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/
+  # Image directories
+  - _GW_train_img: &GW_train_img [/media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV1_train, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV2_train, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV3_train, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV4_train]
+  - _GW_valid_img: &GW_valid_img [/media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV1_valid, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV2_valid, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV3_valid, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV4_valid]
+  - _GW_test_img: &GW_test_img [/media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV1_test, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV2_test, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV3_test, /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/GW_Data/CV4_test]
+  # Word labels
+
+  # =============== IAM dataset ===============
+  - _IAM_BASE: &IAM_BASE /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/
+  # Image directories
+  - _IAM_train_img: &IAM_train_img /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_train
+  - _IAM_valid_img: &IAM_valid_img /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_valid
+  - _IAM_test_img: &IAM_test_img /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_test
+  # Word labels
+  - _IAM_train_word_labels: &IAM_train_word_labels /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_train.csv
+  - _IAM_valid_word_labels: &IAM_valid_word_labels /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_valid.csv
+  - _IAM_valid_seen_word_labels: &IAM_valid_seen_word_labels /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_valid_seen.csv
+  - _IAM_valid_unseen_word_labels: &IAM_valid_unseen_word_labels /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_valid_unseen.csv
+  - _IAM_test_seen_word_labels: &IAM_test_seen_word_labels /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_test_seen.csv
+  - _IAM_test_unseen_word_labels: &IAM_test_unseen_word_labels /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_test_unseen.csv
+  # data base files to accumulate input files
+  - _IAM_train_db: &IAM_train_db /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_train.lmdb
+  - _IAM_valid_db: &IAM_valid_db /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_valid.lmdb
+  - _IAM_test_db: &IAM_test_db /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_test.lmdb
+
+  # =============== Unit test dataset ===============
+  - _UT_BASE: &UT_BASE /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/unit_test_data
+  # Image directories
+  - _UT_train_img: &UT_train_img /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/unit_test_data/train
+  - _UT_valid_img: &UT_valid_img /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/unit_test_data/val
+  # Word labels
+  - _UT_train_word_labels: &UT_train_word_labels /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/unit_test_data/train.csv
+  - _UT_valid_word_labels: &UT_valid_word_labels /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/unit_test_data/val.csv
+  # data base files to accumulate input files
+  - _UT_train_db: &UT_train_db /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/unit_test_data/train.lmdb
+  - _UT_valid_db: &UT_valid_db /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/unit_test_data/val.lmdb
+
+loaders:
+  dataset_config:
+    general:
+      ds_class: [utils.dataset.phosc.PHOSCZSDataset, utils.dataset.phosc.ImageDataset, utils.dataset.phosc.PhosDataset, utils.dataset.phosc.PhocDataset]
+      type: dir # dir/lmdb/df/h5 if none: pick images from folders
+      # Specify paths to db/data/labels
+      raw: null
+      label: null
+      unseen: null
+      transforms: null
+    train:
+      raw: *UT_train_img
+      label: *UT_train_word_labels
+    valid:
+      raw: *UT_valid_img
+      label: *UT_valid_word_labels
+  
+  loader_config:
+    utils.dataloader.phosc.PHOSCZSDataModule:
+      seed: 1234
+      drop_last: False
+      pin_memory: True
+      shuffle: True
+      batch_size: 10
+      num_workers: 10
+
+
+model:
+  embeddingutils.models.unet.IsotropicSuperhumanSNEMINet:
+    conv_type: ConvELU3D
+    in_channels: 1
+    fmaps: [80, 160, 320, 640, 1280] #[40, 80, 160, 320, 640] #, 1280]
+    out_channels: 70 #!Add [16, !Mul [2, 27]] # 16
+    upsampling_mode: 'nearest'
+    scale_factor:
+      - [2, 2, 2]
+      - [2, 2, 2]
+      - [2, 2, 2]
+      - [2, 2, 2]
+    final_activation:
+      HierarchicalAffinityAveraging:
+        log_images: True
+        dim: 3
+        levels: 2
+        stride: 1
+        softmax: False
+        activation: 'Softplus'
+        normalize: True
+        ignore_n_first_channels: 1
+
+trainer:
+  max_epochs: 10000 # basically infinite
+  num_targets: 2
+
+  criterion:
+    losses:
+      fgbg:
+        weight: 0.01
+        SorensenDiceLoss:
+          channelwise: True
+
+      handcrafted_tags:
+        weight: 10.0
+        FiberSeg.loss.HuberTagLoss:
+          delta: 0.03
+          ignore_label: 0
+
+      free_embedding:
+        weight: 10.0
+        LossSegmentwiseFreeTags:
+          loss_weights: [1.e-2, 1.e-5]
+          ignore_label: 0
+          push_distance_measure: 'mean_l1_norm'
+          push_loss_func: 'l1'
+          push_margin: 0.25
+          push_weighting: 'per_pixel'
+          pull_distance_measure: 'mean_l1_norm'
+          pull_loss_func: 'l1'
+          pull_margin: 0.00
+          pull_weighting: 'per_pixel'
+
+    sum_loss_kwargs:
+      grad_stats: ['norm', 'max', 'mean']
+      split_pred: False
+      split_target: False
+
+  metric:
+    evaluate_every: [25, 'iterations']
+    FiberSeg.train.SFRPMetric:
+      use_gt_semantics: True
+      coord_scales: 0.0
+
+  optimizer:
+    Adam:
+      lr: 1.0e-4
+      betas: [0.9, 0.999]
+
+  intervals:
+    save_every: [10000, 'epochs']
+    validate_every:
+      frequency : [500, 'iterations']
+      for_num_iterations: 10
+
+  tensorboard:
+    log_scalars_every: [1, 'iterations']
+    log_images_every: [500, 'iterations']
+    send_volume_at_z_indices: 'mid'
+    split_config_keys: True
+    log_anywhere: ['scalars']
+
+  callbacks:
+    gradients:
+      LogOutputGradients:
+        frequency: 1
+
+    essentials:
+      GradientClip:
+        clip_value: 1e-3
+
+    scheduling:
+      AutoLR:
+        monitor: 'validation_loss'
+        factor: 0.2
+        patience: '5000 iterations'
+        monitor_while: 'validating'
+        monitor_momentum: 0.9
+        cooldown_duration: '50000 iterations'
+        consider_improvement_with_respect_to: 'previous'
+        verbose: True
+
+firelight:
+  pred:
+    RowVisualizer:
+      input_mapping:
+        global: [B: 0]
+      visualizers:
+        - RiffleVisualizer:
+            visualizers:
+              # scale preds for FGBG and embedding independently
+              - StackVisualizer:
+                  stack_dim: 'C'
+                  equalize_visualization_shapes: False
+                  visualizers:
+                    - PredictionVisualizer:
+                        input_mapping:
+                          prediction: [C: '0']
+                        colorize_jointly: 'DHW'
+                    - PredictionVisualizer:
+                        input_mapping:
+                          prediction: [C: '1:']
+                        colorize_jointly: 'CDHW'
+              - ImageVisualizer:
+                  input_mapping:
+                    image: ['output_gradient', B: '0']
+                  colorize_jointly: 'CDHW'
+                  scaling_options:
+                    keep_centered: True
+                  cmap: 'seismic'
+            riffle_dim: 'C'
+
+  affinities:
+    RowVisualizer:
+      input_mapping:
+        global: [B: 0]
+        affinities: ''
+      visualizers:
+        RiffleVisualizer:
+          riffle_dim: 'C'
+          colorize: True
+          colorize_jointly: ['H', 'W', 'D', 'C']
+          visualizers:
+            - ImageVisualizer:
+                colorize: False
+                input_mapping:
+                  image: ['affinities_stage_0', pre: ['softplus', {normalize: {p: 1}}]]
+            - ImageVisualizer:
+                colorize: False
+                input_mapping:
+                  image: ['affinities_stage_1', pre: ['softplus', {normalize: {p: 1}}]]
+
+  visualization_grid:
+    ImageGridVisualizer:
+      input_mapping:
+        global: [B: 0, D: ':']
+        input: ['inputs', index: 0]
+        segmentation: ['target', index: 0]
+        embedding: ['prediction', C: '1:']
+
+      row_specs: ['H', 'S', 'C', 'V']
+      column_specs: ['W', 'D', 'B']
+      pad_value: [0, .1, .2]
+
+      upsampling_factor: 1
+
+      visualizers:
+
+        # visualize raw input
+        - InputVisualizer:
+            cmap: inferno
+
+        # visualize GT segmentation
+        - SegmentationVisualizer:
+            background_label: 0
+
+        # visualize predicted segmentation
+        - SegmentationVisualizer:
+            input_mapping:
+              segmentation: 'hdbscan_segmentation'
+            background_label: 0
+
+        # visualize semantic segmentation predictions
+        - PredictionVisualizer:
+            input_mapping:
+              prediction: [C: '0', pre: 'sigmoid']
+            value_range: [0, 1]
+
+        # visualize predicted embeddings
+        - MaskedPcaVisualizer:
+            input_mapping:
+              embedding: ['prediction', C: '1:']
+            ignore_label: 0
+            n_components: 3
+
+        - PcaVisualizer:
+            input_mapping:
+              embedding: ['prediction', C: '1:']
+            n_components: 6
+
+        # visualize hierarchical averaging
+        - PcaVisualizer:
+            joint_specs: ['S', 'D', 'H', 'W']
+            n_components: 3
+            input_mapping:
+              embedding:
+                StackVisualizer:
+                  stack_dim: 'S'
+                  visualizers:
+                    - ImageVisualizer:
+                        colorize: False
+                        input_mapping:
+                          image: ['embedding_stage_0']
+                    - ImageVisualizer:
+                        colorize: False
+                        input_mapping:
+                          image: ['embedding_stage_1']
+                    - ImageVisualizer:
+                        colorize: False
+                        input_mapping:
+                          image: ['prediction', C: '1:']
+
+         #Handcrafted Tags
+        - OverlayVisualizer:
+            visualizers:
+              - MaskVisualizer:
+                  input_mapping:
+                    tensor: ['segmentation']
+                  mask_label: 0
+                  opacity: 0.5
+
+              - StackVisualizer:
+                  visualizers:
+                    # visualize ground-truth tags
+                    - ImageVisualizer:
+                        input_mapping:
+                          image: ['target', index: 1]
+                        colorize: False
+
+                    # visualize predicted tags
+                    - ImageVisualizer:
+                        input_mapping:
+                          image: ['embedding', C: ':4']
+                        colorize: False
+                  stack_dim: 'S'
+                  colorize: True
+                  colorize_jointly: 'HWDS'
+                  cmap: 'Spectral'
+
