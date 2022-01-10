@@ -43,112 +43,100 @@ global_macros:
 loaders:
   dataset_config:
     general:
-      ds_class: [utils.dataset.phosc.PHOSCZSDataset, utils.dataset.phosc.ImageDataset, utils.dataset.phosc.PhosDataset, utils.dataset.phosc.PhocDataset]
+      ds_class: [utils.dataset.phosc.PHOSCZSDataset, 
+      utils.dataset.phosc.ImageDataset, 
+      utils.dataset.phosc.PhosDataset, 
+      utils.dataset.phosc.PhocDataset,
+      utils.dataset.phosc.WordlabelDataset]
       type: dir # dir/lmdb/df/h5 if none: pick images from folders
       # Specify paths to db/data/labels
       raw: null
       label: null
       unseen: null
-      transforms: null
     train:
-      raw: *UT_train_img
-      label: *UT_train_word_labels
+      raw: *IAM_train_img
+      label: *IAM_train_word_labels
     valid:
-      raw: *UT_valid_img
-      label: *UT_valid_word_labels
+      raw: *IAM_valid_img
+      label: *IAM_valid_word_labels
   
   loader_config:
     utils.dataloader.phosc.PHOSCZSDataModule:
       seed: 1234
-      drop_last: False
+      drop_last: True
       pin_memory: True
       shuffle: True
-      batch_size: 10
+      batch_size: 64
       num_workers: 10
 
-
 model:
-  embeddingutils.models.unet.IsotropicSuperhumanSNEMINet:
-    conv_type: ConvELU3D
-    in_channels: 1
-    fmaps: [80, 160, 320, 640, 1280] #[40, 80, 160, 320, 640] #, 1280]
-    out_channels: 70 #!Add [16, !Mul [2, 27]] # 16
-    upsampling_mode: 'nearest'
-    scale_factor:
-      - [2, 2, 2]
-      - [2, 2, 2]
-      - [2, 2, 2]
-      - [2, 2, 2]
-    final_activation:
-      HierarchicalAffinityAveraging:
-        log_images: True
-        dim: 3
-        levels: 2
-        stride: 1
-        softmax: False
-        activation: 'Softplus'
-        normalize: True
-        ignore_n_first_channels: 1
+  models.phocnet.PHOSCNet:
+    conv:
+      in_ch: 3
+      fmaps: [64, 128, 256, 256, 256, 512]
+      kernel_size: 3
+      stride: 1
+      padding: 1
+      layer_order: cr
+      last_single_conv_fmap: 512
+    pool:
+      layer_index: [1, 3] # layer index where MaxPooling is required. Note indexing starts from 0
+      kernel_size: 2
+      stride: 2
+      padding: 0
+    pyramid_pooling:
+      type: spatial
+      levels: [1, 2, 4]
+    phos_head:
+        fmaps: [4096, 4096, 165]
+        dropout: [0.5, 0.5]
+    phoc_head:
+        fmaps: [4096, 4096, 604]
+        dropout: [0.5, 0.5]
+
+criterion:
+  losses:
+    phos:
+      weight: 1.5
+      pred_idx: 'phos'
+      target_idx: 'phos'
+      function: models.loss.phosc.PhosLoss
+
+    phoc:
+      weight: 4.5
+      pred_idx: 'phoc'
+      target_idx: 'phoc'
+      function: models.loss.phosc.PhocLoss
+
+  sum_loss:
+    grad_stats: ['norm', 'max', 'mean']
+    split_pred: True
+    split_target: True
+
+metric:
+  name: models.metric.wsmetric.WSMetric
 
 trainer:
   max_epochs: 10000 # basically infinite
   num_targets: 2
-
-  criterion:
-    losses:
-      fgbg:
-        weight: 0.01
-        SorensenDiceLoss:
-          channelwise: True
-
-      handcrafted_tags:
-        weight: 10.0
-        FiberSeg.loss.HuberTagLoss:
-          delta: 0.03
-          ignore_label: 0
-
-      free_embedding:
-        weight: 10.0
-        LossSegmentwiseFreeTags:
-          loss_weights: [1.e-2, 1.e-5]
-          ignore_label: 0
-          push_distance_measure: 'mean_l1_norm'
-          push_loss_func: 'l1'
-          push_margin: 0.25
-          push_weighting: 'per_pixel'
-          pull_distance_measure: 'mean_l1_norm'
-          pull_loss_func: 'l1'
-          pull_margin: 0.00
-          pull_weighting: 'per_pixel'
-
-    sum_loss_kwargs:
-      grad_stats: ['norm', 'max', 'mean']
-      split_pred: False
-      split_target: False
-
-  metric:
-    evaluate_every: [25, 'iterations']
-    FiberSeg.train.SFRPMetric:
-      use_gt_semantics: True
-      coord_scales: 0.0
+  num_tile_col: 5
 
   optimizer:
-    Adam:
-      lr: 1.0e-4
-      betas: [0.9, 0.999]
+    name: Adam
+    lr: 1.0e-4
+    betas: [0.9, 0.999]
 
   intervals:
-    save_every: [10000, 'epochs']
-    validate_every:
-      frequency : [500, 'iterations']
-      for_num_iterations: 10
-
-  tensorboard:
-    log_scalars_every: [1, 'iterations']
-    log_images_every: [500, 'iterations']
-    send_volume_at_z_indices: 'mid'
-    split_config_keys: True
-    log_anywhere: ['scalars']
+    log_train_every: 320
+    log_valid_every: 320
+    validate_every: 32
+    
+  #tensorboard:
+  # log_scalars_every: [1, 'iterations']
+  # log_images_every: [500, 'iterations']
+  # send_volume_at_z_indices: 'mid'
+  # split_config_keys: True
+  # log_anywhere: ['scalars']
 
   callbacks:
     gradients:
@@ -169,151 +157,3 @@ trainer:
         cooldown_duration: '50000 iterations'
         consider_improvement_with_respect_to: 'previous'
         verbose: True
-
-firelight:
-  pred:
-    RowVisualizer:
-      input_mapping:
-        global: [B: 0]
-      visualizers:
-        - RiffleVisualizer:
-            visualizers:
-              # scale preds for FGBG and embedding independently
-              - StackVisualizer:
-                  stack_dim: 'C'
-                  equalize_visualization_shapes: False
-                  visualizers:
-                    - PredictionVisualizer:
-                        input_mapping:
-                          prediction: [C: '0']
-                        colorize_jointly: 'DHW'
-                    - PredictionVisualizer:
-                        input_mapping:
-                          prediction: [C: '1:']
-                        colorize_jointly: 'CDHW'
-              - ImageVisualizer:
-                  input_mapping:
-                    image: ['output_gradient', B: '0']
-                  colorize_jointly: 'CDHW'
-                  scaling_options:
-                    keep_centered: True
-                  cmap: 'seismic'
-            riffle_dim: 'C'
-
-  affinities:
-    RowVisualizer:
-      input_mapping:
-        global: [B: 0]
-        affinities: ''
-      visualizers:
-        RiffleVisualizer:
-          riffle_dim: 'C'
-          colorize: True
-          colorize_jointly: ['H', 'W', 'D', 'C']
-          visualizers:
-            - ImageVisualizer:
-                colorize: False
-                input_mapping:
-                  image: ['affinities_stage_0', pre: ['softplus', {normalize: {p: 1}}]]
-            - ImageVisualizer:
-                colorize: False
-                input_mapping:
-                  image: ['affinities_stage_1', pre: ['softplus', {normalize: {p: 1}}]]
-
-  visualization_grid:
-    ImageGridVisualizer:
-      input_mapping:
-        global: [B: 0, D: ':']
-        input: ['inputs', index: 0]
-        segmentation: ['target', index: 0]
-        embedding: ['prediction', C: '1:']
-
-      row_specs: ['H', 'S', 'C', 'V']
-      column_specs: ['W', 'D', 'B']
-      pad_value: [0, .1, .2]
-
-      upsampling_factor: 1
-
-      visualizers:
-
-        # visualize raw input
-        - InputVisualizer:
-            cmap: inferno
-
-        # visualize GT segmentation
-        - SegmentationVisualizer:
-            background_label: 0
-
-        # visualize predicted segmentation
-        - SegmentationVisualizer:
-            input_mapping:
-              segmentation: 'hdbscan_segmentation'
-            background_label: 0
-
-        # visualize semantic segmentation predictions
-        - PredictionVisualizer:
-            input_mapping:
-              prediction: [C: '0', pre: 'sigmoid']
-            value_range: [0, 1]
-
-        # visualize predicted embeddings
-        - MaskedPcaVisualizer:
-            input_mapping:
-              embedding: ['prediction', C: '1:']
-            ignore_label: 0
-            n_components: 3
-
-        - PcaVisualizer:
-            input_mapping:
-              embedding: ['prediction', C: '1:']
-            n_components: 6
-
-        # visualize hierarchical averaging
-        - PcaVisualizer:
-            joint_specs: ['S', 'D', 'H', 'W']
-            n_components: 3
-            input_mapping:
-              embedding:
-                StackVisualizer:
-                  stack_dim: 'S'
-                  visualizers:
-                    - ImageVisualizer:
-                        colorize: False
-                        input_mapping:
-                          image: ['embedding_stage_0']
-                    - ImageVisualizer:
-                        colorize: False
-                        input_mapping:
-                          image: ['embedding_stage_1']
-                    - ImageVisualizer:
-                        colorize: False
-                        input_mapping:
-                          image: ['prediction', C: '1:']
-
-         #Handcrafted Tags
-        - OverlayVisualizer:
-            visualizers:
-              - MaskVisualizer:
-                  input_mapping:
-                    tensor: ['segmentation']
-                  mask_label: 0
-                  opacity: 0.5
-
-              - StackVisualizer:
-                  visualizers:
-                    # visualize ground-truth tags
-                    - ImageVisualizer:
-                        input_mapping:
-                          image: ['target', index: 1]
-                        colorize: False
-
-                    # visualize predicted tags
-                    - ImageVisualizer:
-                        input_mapping:
-                          image: ['embedding', C: ':4']
-                        colorize: False
-                  stack_dim: 'S'
-                  colorize: True
-                  colorize_jointly: 'HWDS'
-                  cmap: 'Spectral'
-

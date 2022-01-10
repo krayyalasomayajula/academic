@@ -1,3 +1,4 @@
+2021/wszshot/*.png
 2021/wszshot/dependencies
 2021/wszshot/utils/dataloader/__pycache__
 2021/wszshot/utils/dataset/__pycache__
@@ -11,4 +12,11 @@
 2021/wszshot/utils/generic/.ipynb_checkpoints
 2021/wszshot/utils/.ipynb_checkpoints
 2021/wszshot/utils/phosc/.ipynb_checkpoints
+2021/wszshot/models/loss/__pycache__
+2021/wszshot/models/metric/__pycache__
+2021/wszshot/models/phocnet/__pycache__
+2021/wszshot/lightning_logs
+2021/wszshot/models/loss/.ipynb_checkpoints
+2021/wszshot/models/metric/.ipynb_checkpoints
+2021/wszshot/models/phocnet/.ipynb_checkpoints
 

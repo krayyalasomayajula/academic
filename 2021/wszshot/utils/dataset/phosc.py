@@ -39,8 +39,8 @@ class ImageDataset(Dataset):
         return img
     
     def __getitem__(self, idx):
-        batch_img = self.get_batch_images(idx)
-        return batch_img
+        img = self.get_batch_images(idx)
+        return img
     
 
 class PhosDataset(Dataset):
@@ -65,8 +65,8 @@ class PhosDataset(Dataset):
         return len(self.phos_list)
 
     def __getitem__(self, idx):
-        batch_phos = self.phos_list[idx]
-        return batch_phos
+        phos = self.phos_list[idx].astype('float32')
+        return phos
 
 
 class PhocDataset(Dataset):
@@ -91,8 +91,34 @@ class PhocDataset(Dataset):
         return len(self.phoc_list)
 
     def __getitem__(self, idx):
-        batch_phoc = self.phoc_list[idx]
-        return batch_phoc
+        phoc = self.phoc_list[idx].astype('float32')
+        return phoc
+
+
+class WordlabelDataset(Dataset):
+    """
+    Note:
+        You need to have augmented word dataset first and provide the path to where it is saved.
+        On the fly data augmentation can be done if enough CPUs are available.
+    """    
+    
+    def __init__(self,
+                 wlabel_list: list
+                ):
+        """
+        Args:
+            data_dir (str): path/paths to augmented data
+            label_csv: CSV file containing the labels for images
+            transform: transforms that need to be applied to the images
+        """
+        self.wlabel_list = wlabel_list
+        
+    def __len__(self):
+        return len(self.wlabel_list)
+
+    def __getitem__(self, idx):
+        wlabel = self.wlabel_list[idx]
+        return wlabel
 
 
 class PHOSCZSDataset(Dataset): # ConcatDataset
@@ -103,7 +129,7 @@ class PHOSCZSDataset(Dataset): # ConcatDataset
         return min(len(dataset) for dataset in self.dict_datasets.values()) # Taken from df so all lenghts will be equal
     
     def __getitem__(self, idx):
-        batch_phosc = {}
+        phosc = {}
         for key, dataset in self.dict_datasets.items():
-            batch_phosc[key] = dataset[idx]
-        return batch_phosc
+            phosc[key] = dataset[idx]
+        return phosc

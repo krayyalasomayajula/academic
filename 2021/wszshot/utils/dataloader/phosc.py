@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 from copy import deepcopy
 from PIL import Image
+from sklearn import preprocessing
 
 from utils.generic.getaccess import (get_class_from_key, 
                                      get_class_from_str, 
@@ -103,6 +104,20 @@ class PHOSCZSDataModule(LightningDataModule):
             df_train = df_train.merge(df_valid, how='left', indicator=True)
             df_train = df_train[df_train['_merge'] == 'left_only']
             df_train = df_train[['Image', 'Word']]
+        
+        self.loader_config   = loader_config
+        self.dataset_configs = dataset_configs
+        self.df_train = df_train
+        self.df_valid = df_valid
+        self.df_test  = df_test
+        self.df_all   = pd.DataFrame()
+
+    def prepare_data(self):
+        loader_config   = self.loader_config
+        dataset_configs = self.dataset_configs
+        df_train = self.df_train
+        df_valid = self.df_valid
+        df_test  = self.df_test
 
         '''print(f"Train_Images= {len(df_train)}, Valid_Images={len(df_valid)}")
         pdb.set_trace()'''
@@ -110,17 +125,36 @@ class PHOSCZSDataModule(LightningDataModule):
         for key, config in dataset_configs.items():
             if key == 'train':
                 config['label'] = df_train
-                dataset_configs[key]['label'], train_word_phos_label, train_word_phoc_label = self.sanity_checks(config)                
+                (dataset_configs[key]['label'], 
+                 train_word_phos_label, 
+                 train_word_phoc_label) = self.sanity_checks(config)
+                train_word_list = list(set(dataset_configs[key]['label']['Word']))
             elif key == 'valid':
                 config['label'] = df_valid
-                dataset_configs[key]['label'], valid_word_phos_label, valid_word_phoc_label = self.sanity_checks(config)
+                (dataset_configs[key]['label'], 
+                 valid_word_phos_label, 
+                 valid_word_phoc_label) = self.sanity_checks(config)
+                valid_word_list = list(set(dataset_configs[key]['label']['Word']))
             elif key == 'test':
                 config['label'] = df_test
+                (dataset_configs[key]['label'], 
+                 test_word_phos_label, 
+                 test_word_phoc_label) = self.sanity_checks(config)
+                test_word_list = list(set(dataset_configs[key]['label']['Word']))
                 
             '''print(f"config: {config}")'''
             
-        self.all_phos_labels = {**train_word_phos_label,**valid_word_phos_label}
-        self.all_phoc_labels = {**train_word_phoc_label,**valid_word_phoc_label}
+        if 'test' in dataset_configs.keys():
+            self.all_phos_labels = {**train_word_phos_label, **valid_word_phos_label, **test_word_phos_label}
+            self.all_phoc_labels = {**train_word_phoc_label, **valid_word_phoc_label, **test_word_phoc_label}
+            all_words       = list(set(train_word_list + valid_word_list + test_word_list))    
+        else:
+            self.all_phos_labels = {**train_word_phos_label,**valid_word_phos_label}
+            self.all_phoc_labels = {**train_word_phoc_label,**valid_word_phoc_label}
+            all_words       = list(set(train_word_list + valid_word_list))
+        
+        self.wordLabelEncoder = preprocessing.LabelEncoder()
+        self.wordLabelEncoder.fit(all_words)
         
         '''
         print(f"len(train_word_phos_label): {len(train_word_phos_label)}, len(valid_word_phos_label): {len(valid_word_phos_label)}")
@@ -128,18 +162,25 @@ class PHOSCZSDataModule(LightningDataModule):
         pdb.set_trace()
         '''
         for key, config in dataset_configs.items():
-            if key == 'train' or key == 'valid':
-                config['label']['PhosLabel'] = config['label']['Word'].apply(self.getphoslabel)
-                config['label']['PhocLabel'] = config['label']['Word'].apply(self.getphoclabel)
-                
-                '''print(f"config['label'].columns: {config['label'].columns}")'''
+            config['label']['PhosLabel'] = config['label']['Word'].apply(self.getphoslabel)
+            config['label']['PhocLabel'] = config['label']['Word'].apply(self.getphoclabel)
+            config['label']['Wordlabel'] = config['label']['Word'].apply(self.getwordlabel)
+        
+        for func, col_name in zip([self.getphoslabel, self.getphoclabel, self.getwordlabel], ['phos', 'phoc', 'word']):
+            self.df_all[col_name] = list(map(func, all_words))
+        
+        '''print(f"config['label'].columns: {config['label'].columns}")'''
         #pdb.set_trace()
         # ===== Populate trainset, valset, testset from Dataset class =====
         self.trainset, self.valset, self.testset = None, None, None
         for key, config in dataset_configs.items():
             list_class_str = config.pop('ds_class', None)
             assert all(class_str is not None for class_str in list_class_str), 'list_class_str needs to be defined in loaders: dataset_config'
-            concat_dataset_class, image_dataset_class, phos_dataset_class, phoc_dataset_class = map(get_class_from_str, list_class_str)
+            (concat_dataset_class, 
+             image_dataset_class, 
+             phos_dataset_class, 
+             phoc_dataset_class,
+             wlabel_dataset_class) = map(get_class_from_str, list_class_str)
             '''print(f"concat_dataset_class: {concat_dataset_class}, \
                   image_dataset_class: {image_dataset_class}, \
                   phos_dataset_class: {phos_dataset_class}, \
@@ -151,19 +192,17 @@ class PHOSCZSDataModule(LightningDataModule):
             print(f"xx1: {xx1}, \
                   xx2: {xx2}, \
                   xx3: {xx3}")'''
-            
+            dataset = concat_dataset_class({'img': image_dataset_class(list(config['label']['Image']), self._default_transforms()),
+                                            'phos': phos_dataset_class(list(config['label']['PhosLabel'])), 
+                                            'phoc': phoc_dataset_class(list(config['label']['PhocLabel'])),
+                                            'wlabel': wlabel_dataset_class(list(config['label']['Wordlabel']))})
             if key == 'train':
-                self.trainset = concat_dataset_class({'img': image_dataset_class(list(config['label']['Image']), config['transforms']),
-                                                     'phos': phos_dataset_class(list(config['label']['PhosLabel'])), 
-                                                     'phoc': phoc_dataset_class(list(config['label']['PhocLabel']))})
+                self.trainset = dataset
             elif key == 'valid':
-                self.validset = concat_dataset_class({'img': image_dataset_class(list(config['label']['Image']), config['transforms']),
-                                                     'phos': phos_dataset_class(list(config['label']['PhosLabel'])), 
-                                                     'phoc': phoc_dataset_class(list(config['label']['PhocLabel']))})
+                self.validset = dataset
             elif key == 'test':
-                self.testset = concat_dataset_class({'img': image_dataset_class(list(config['label']['Image']), config['transforms']),
-                                                     'phos': phos_dataset_class(list(config['label']['PhosLabel'])), 
-                                                     'phoc': phoc_dataset_class(list(config['label']['PhocLabel']))})
+                self.testset = dataset
+                
         '''print(f"self.trainset: {self.trainset}, self.validset: {self.validset}, self.testset: {self.testset}")
         pdb.set_trace()'''
         # ===== Initialize from loader_config =====
@@ -173,7 +212,7 @@ class PHOSCZSDataModule(LightningDataModule):
         self.shuffle     = loader_config['shuffle']
         self.pin_memory  = loader_config['pin_memory']
         self.drop_last   = loader_config['drop_last']
-            
+    
     def sanity_checks(self, dataset_config):
         data_dir  = dataset_config['raw'] if isinstance(dataset_config['raw'], list) else [dataset_config['raw']]
         labels    = dataset_config['label']
@@ -190,7 +229,7 @@ class PHOSCZSDataModule(LightningDataModule):
         assert all(elem in img_list  for elem in list(labels['Image'])), "Error: Not all labeled images are present"
         assert all(elem in list(labels['Image']) for elem in img_list), "Error: Not all images are labeled"
         
-        # Generating dictionaries of words mapped to PHOS & PHOC vectors
+        # Generating dictionaries of words mapped to PHOS & PHOC vectors and len(word)
         word_phos_label = gen_phos_label(list(set(labels['Word'])))
         word_phoc_label = gen_phoc_label(list(set(labels['Word'])))
         
@@ -207,6 +246,10 @@ class PHOSCZSDataModule(LightningDataModule):
 
     def getphoslabel(self, x):
         return self.all_phos_labels[x]
+    
+    def getwordlabel(self, x):
+        yy = self.wordLabelEncoder.transform([x])[0]
+        return yy
 
     def train_dataloader(self) -> DataLoader:
         loader = DataLoader(
