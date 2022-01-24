@@ -42,13 +42,13 @@ class SumLoss(nn.Module):
             _criterion_config[loss_key]['weight']     = weight
             _criterion_config[loss_key]['pred_idx']   = pred_idx
             _criterion_config[loss_key]['target_idx'] = target_idx
-            _criterion_config[loss_key]['function']       = loss_func
+            _criterion_config[loss_key]['function']   = loss_func
         
         return _criterion_config
             
         
     def forward(self, pred, target):
-        
+        #pdb.set_trace()
         pred_mode = self.get_mode(pred, self.split_pred)
         if pred_mode == 'dict':
             for loss_key, loss_config_dict in self.dict_losses.items():

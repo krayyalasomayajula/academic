@@ -78,8 +78,9 @@ class PHOSCZSDataModule(LightningDataModule):
             dataset_configs[key] = _config if general_config == None else recursive_parse_settings(deepcopy(general_config), _config)
         
         # ===== Preprocess the labels if required =====
-        header_list = ["Image", "Word", "extra"]
         df_train, df_valid, df_test = None, None, None
+        
+        header_list = None #["Image", "Word", "extra"]    
         assert os.path.exists(dataset_configs['train']['label']), "Error: Train labels file does not exist"
         df_train = pd.read_csv(dataset_configs['train']['label'], names=header_list)
         
@@ -219,6 +220,7 @@ class PHOSCZSDataModule(LightningDataModule):
         
         # Check all images have labels corresponding to them in training
         img_list = []
+        #pdb.set_trace()
         for _dir in data_dir:
             files_list = get_filenames(_dir)
             img_list   += files_list
@@ -226,9 +228,14 @@ class PHOSCZSDataModule(LightningDataModule):
         # Adding folder names to file names
         labels['Image'] = dataset_config['raw']+ "/" + labels['Image']
         
+        # <= to accomodate seen/unseen cases
+        assert len(list(labels['Image'])) <= len(img_list), "Error: Not all labels might have images" #"Error: Not all images are labeled"
         assert all(elem in img_list  for elem in list(labels['Image'])), "Error: Not all labeled images are present"
-        assert all(elem in list(labels['Image']) for elem in img_list), "Error: Not all images are labeled"
-        
+        #if not len(img_list) == len(list(labels['Image'])):
+        #    pdb.set_trace()
+        #if not all(elem in img_list  for elem in list(labels['Image'])):
+        #    pdb.set_trace()
+        #pdb.set_trace()
         # Generating dictionaries of words mapped to PHOS & PHOC vectors and len(word)
         word_phos_label = gen_phos_label(list(set(labels['Word'])))
         word_phoc_label = gen_phoc_label(list(set(labels['Word'])))

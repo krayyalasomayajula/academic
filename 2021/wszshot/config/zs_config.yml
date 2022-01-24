@@ -28,6 +28,15 @@ global_macros:
   - _IAM_valid_db: &IAM_valid_db /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_valid.lmdb
   - _IAM_test_db: &IAM_test_db /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data/IAM_test.lmdb
 
+# =============== IAM small dataset ===============
+  - _IAM_BASE_by5: &IAM_BASE_by5 /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data_3_2_by5/
+  # Image directories
+  - _IAM_train_img_by5: &IAM_train_img_by5 /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data_3_2_by5/train
+  - _IAM_valid_img_by5: &IAM_valid_img_by5 /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data_3_2_by5/valid
+  # Word labels
+  - _IAM_train_word_labels_by5: &IAM_train_word_labels_by5 /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data_3_2_by5/iam_by5_train.csv
+  - _IAM_valid_word_labels_by5: &IAM_valid_word_labels_by5 /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/IAM_Data_3_2_by5/iam_by5_valid.csv
+  
   # =============== Unit test dataset ===============
   - _UT_BASE: &UT_BASE /media/windowsC/SIN_Desktop/projects/ZSL_WordSpotting/unit_test_data
   # Image directories
@@ -66,7 +75,7 @@ loaders:
       drop_last: True
       pin_memory: True
       shuffle: True
-      batch_size: 64
+      batch_size: 32
       num_workers: 10
 
 model:
@@ -118,8 +127,7 @@ metric:
 
 trainer:
   max_epochs: 10000 # basically infinite
-  num_targets: 2
-  num_tile_col: 5
+  num_tile_col: 8
 
   optimizer:
     name: Adam
@@ -127,9 +135,10 @@ trainer:
     betas: [0.9, 0.999]
 
   intervals:
-    log_train_every: 320
-    log_valid_every: 320
-    validate_every: 32
+    log_train_every: 128
+    log_valid_every: 128
+    validate_every: 128
+    validate_for: 32
     
   #tensorboard:
   # log_scalars_every: [1, 'iterations']
