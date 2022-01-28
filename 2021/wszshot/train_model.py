@@ -263,7 +263,7 @@ if __name__ == '__main__':
 
     cli = {}
     cli['config'] = './config/zs_config.yml'
-    cli['log_dir'] = './ws_pl_logging_batch64'
+    cli['log_dir'] = './ws_pl_logging'
 
     if cli['log_dir'] is None:
             cli['log_dir'] = input ("Enter directory to save model and logs:")
