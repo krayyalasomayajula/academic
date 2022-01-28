@@ -1,5 +1,6 @@
 device: cuda
-
+run_mode: test #train
+pre_trained: /media/windowsC/SIN_Desktop/projects/pretrained_phoscnet/ws_pl_logging/ws_best_model-epoch=028-val_loss=0.00000.ckpt
 
 global_macros:
   # =============== George washington dataset ===============
@@ -68,6 +69,9 @@ loaders:
     valid:
       raw: *IAM_valid_img
       label: *IAM_valid_word_labels
+    test:
+      raw: *IAM_test_img
+      label: *IAM_test_unseen_word_labels
   
   loader_config:
     utils.dataloader.phosc.PHOSCZSDataModule:

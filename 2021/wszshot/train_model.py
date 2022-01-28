@@ -13,7 +13,6 @@ from utils import (_NATIVE_AMP_AVAILABLE, _TORCHVISION_AVAILABLE,
                   _TORCH_MAX_VERSION_SPARSEML, _SPARSEML_AVAILABLE)
 
 
-import os
 import numpy as np
 from termcolor import colored
 
@@ -264,7 +263,7 @@ if __name__ == '__main__':
 
     cli = {}
     cli['config'] = './config/zs_config.yml'
-    cli['log_dir'] = './ws_pl_logging'
+    cli['log_dir'] = './ws_pl_logging_batch64'
 
     if cli['log_dir'] is None:
             cli['log_dir'] = input ("Enter directory to save model and logs:")
@@ -296,7 +295,8 @@ if __name__ == '__main__':
     # # ================================== <code>DataLoader</code> ================================
     #==============================================================================================
 
-
+    print("Preparing data loaders ...")
+          
     loader_key, loader_config_value = next(iter(loader_config.items()))
     loader_class = get_class_from_str(loader_key)
     phosc_loader = loader_class(dataset_config, loader_config_value)
@@ -305,6 +305,8 @@ if __name__ == '__main__':
     trainset_sz = len(phosc_loader.trainset)
     validset_sz = len(phosc_loader.validset)
     print(f"size(trainset): {trainset_sz}, size(validset): {validset_sz}")
+    if phosc_loader.testset is not None:
+        print(f"size(testset): {len(phosc_loader.testset)}")
 
 
     #==============================================================================================
@@ -354,8 +356,7 @@ if __name__ == '__main__':
 
     class_fn = get_class_from_str(args['metric']['name'])
     ws_metric = class_fn(phosc_loader.df_all, phosc_loader.wordLabelEncoder)
-
-
+    
     #---------------------------------- lightning module class ----------------------------------
     seed_everything(42)
     trainer_config = args['trainer']
@@ -363,23 +364,49 @@ if __name__ == '__main__':
                  sum_loss_cls,
                  ws_metric,
                  trainer_config)
-    #---------------------------------- TensorBoardLogger ----------------------------------
-    phosc_logger = TensorBoardLogger(cli['log_dir'], name="ws_phosc_default")
     
-    #---------------------------------- callbacks ----------------------------------
-    checkpoint_callback = ModelCheckpoint(
-    monitor="avg_val_loss",
-    dirpath=cli['log_dir'],
-    filename="ws_best_model-{epoch:03d}-{val_loss:.5f}",
-    save_top_k=1,
-    mode="min")
-    
-    trainer = Trainer(gpus=1,
-                      limit_val_batches=pl_phosc_model.validate_for,
-                      val_check_interval=pl_phosc_model.validate_every,
-                      progress_bar_refresh_rate=0,
-                      max_epochs=trainer_config['max_epochs'],
-                      logger=phosc_logger,
-                      callbacks=[checkpoint_callback])
-    trainer.fit(pl_phosc_model, phosc_loader.train_dataloader(), phosc_loader.val_dataloader())
-    
+    if args['run_mode'] == 'train':
+        print("Start model training ...")
+        #---------------------------------- TensorBoardLogger ----------------------------------
+        phosc_logger = TensorBoardLogger(cli['log_dir'], name="ws_phosc_default")
+
+        #---------------------------------- callbacks ----------------------------------
+        checkpoint_callback = ModelCheckpoint(
+        monitor="avg_val_loss",
+        dirpath=cli['log_dir'],
+        filename="ws_best_model-{epoch:03d}-{val_loss:.5f}",
+        save_top_k=1,
+        mode="min")
+
+        trainer = Trainer(gpus=1,
+                          limit_val_batches=pl_phosc_model.validate_for,
+                          val_check_interval=pl_phosc_model.validate_every,
+                          progress_bar_refresh_rate=0,
+                          max_epochs=trainer_config['max_epochs'],
+                          logger=phosc_logger,
+                          callbacks=[checkpoint_callback])
+        trainer.fit(pl_phosc_model, phosc_loader.train_dataloader(), phosc_loader.val_dataloader())
+
+    if args['run_mode'] == 'test':
+        print("Start model testing ...")
+        #pdb.set_trace()
+        assert os.path.exists(args['pre_trained']), 'Error: Pre-trained model path doesnot exists'
+        checkpoint = torch.load(args['pre_trained'], map_location=lambda storage, loc: storage)
+        pl_phosc_model.load_state_dict(checkpoint['state_dict'])
+        
+        pl_phosc_model.model.eval()
+        pl_phosc_model.model.to('cuda')
+        
+        total_acc = 0
+        total_samples = 0
+        for batch_idx, batch in enumerate(phosc_loader.test_dataloader()):
+            img = batch['img'].to('cuda')
+            batch['phos']= batch['phos'].to('cuda')
+            batch['phoc']= batch['phoc'].to('cuda')
+            batch['wlabel']= batch['wlabel'].to('cuda')
+            cnn_feat = pl_phosc_model.model(img)
+            acc_dict = pl_phosc_model.metric.compute(cnn_feat, batch)
+            total_acc += acc_dict['accuracy_phosc']
+            total_samples += 1
+        print(f'Test accuracy: {total_acc/total_samples}')
+        
